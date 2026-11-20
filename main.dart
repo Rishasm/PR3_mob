@@ -19,6 +19,13 @@ class NotesApp extends StatelessWidget {
   }
 }
 
+class Note {
+  Note(this.text);
+
+  String text;
+  bool isImportant = false;
+}
+
 class NotesPage extends StatefulWidget {
   const NotesPage({super.key});
 
@@ -28,7 +35,7 @@ class NotesPage extends StatefulWidget {
 
 class _NotesPageState extends State<NotesPage> {
   final TextEditingController _controller = TextEditingController();
-  final List<String> _notes = [];
+  final List<Note> _notes = [];
   int? _editingIndex;
   String? _errorText;
 
@@ -40,9 +47,9 @@ class _NotesPageState extends State<NotesPage> {
     }
     setState(() {
       if (_editingIndex == null) {
-        _notes.add(text);
+        _notes.add(Note(text));
       } else {
-        _notes[_editingIndex!] = text;
+        _notes[_editingIndex!].text = text;
       }
       _editingIndex = null;
       _errorText = null;
@@ -55,11 +62,27 @@ class _NotesPageState extends State<NotesPage> {
     setState(() {
       _editingIndex = index;
       _errorText = null;
-      _controller.text = _notes[index];
+      _controller.text = _notes[index].text;
       _controller.selection = TextSelection.collapsed(
         offset: _controller.text.length,
       );
     });
+  }
+
+  void _viewNote(Note note) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Просмотр заметки'),
+        content: SingleChildScrollView(child: Text(note.text)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Закрыть'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _cancelEditing() {
@@ -145,29 +168,62 @@ class _NotesPageState extends State<NotesPage> {
                     : ListView.builder(
                         itemCount: _notes.length,
                         itemBuilder: (context, index) {
-                          return Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Text(_notes[index]),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      IconButton(
-                                        tooltip: 'Редактировать',
-                                        onPressed: () => _editNote(index),
-                                        icon: const Icon(Icons.edit_outlined),
-                                      ),
-                                      IconButton(
-                                        tooltip: 'Удалить',
-                                        onPressed: () => _deleteNote(index),
-                                        icon: const Icon(Icons.delete_outline),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                          final note = _notes[index];
+                          double dragDistance = 0;
+                          return GestureDetector(
+                            key: ObjectKey(note),
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _viewNote(note),
+                            onDoubleTap: () {
+                              setState(() => note.isImportant = true);
+                            },
+                            onLongPress: () => _editNote(index),
+                            onHorizontalDragStart: (_) => dragDistance = 0,
+                            onHorizontalDragUpdate: (details) {
+                              dragDistance += details.delta.dx;
+                            },
+                            onHorizontalDragEnd: (_) {
+                              if (dragDistance < -60) {
+                                _deleteNote(index);
+                              } else if (dragDistance > 60) {
+                                setState(() => note.isImportant = false);
+                              }
+                            },
+                            onHorizontalDragCancel: () => dragDistance = 0,
+                            child: Card(
+                              color: note.isImportant
+                                  ? Colors.amber.shade100
+                                  : null,
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      note.text,
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        IconButton(
+                                          tooltip: 'Редактировать',
+                                          onPressed: () => _editNote(index),
+                                          icon: const Icon(Icons.edit_outlined),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Удалить',
+                                          onPressed: () => _deleteNote(index),
+                                          icon: const Icon(
+                                            Icons.delete_outline,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           );
